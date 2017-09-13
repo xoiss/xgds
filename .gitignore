@@ -1,0 +1,8 @@
+/.project
+/.cproject
+/.settings/
+
+xgds
+*.o
+*.s
+*.ii
