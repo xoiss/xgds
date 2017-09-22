@@ -49,12 +49,17 @@ int main(void) {
         if (rec_len == 0) {
             printf("!zero!\n");
         }
-        printf("%02X%02X %u\n", rec_type, data_type, rec_len);
+        printf("%02X%02X %u\t:", rec_type, data_type, rec_len);
 
-        if (fseek(f, rec_len - 4, SEEK_CUR) != 0) {
-            perror("fseek failed");
-            exit(EXIT_FAILURE);
+        rec_len -= 4;
+        while (rec_len > 0) {
+            u16 = fread_u16(f);
+            u_int b0 = (uint8_t)(u16 >> 0);
+            u_int b1 = (uint8_t)(u16 >> 8);
+            printf("%02X-%02X ", b0, b1);
+            rec_len -= 2;
         }
+        printf("$\n");
     }
 
     fclose(f);
