@@ -21,6 +21,10 @@ uint16_t fread_u16(FILE *f) {
 
 int main(void) {
     FILE *f = fopen("k1zhg454.gds", "rb");
+    if (f == NULL) {
+        perror("fopen failed");
+        exit(EXIT_FAILURE);
+    }
 
     for (;;) {
         uint16_t u16 = fread_u16(f);
