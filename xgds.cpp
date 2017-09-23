@@ -46,9 +46,6 @@ int main(void) {
         u16 = fread_u16(f);
         u_int rec_type = (uint8_t)(u16 >> 0);
         u_int data_type = (uint8_t)(u16 >> 8);
-        if (rec_len == 0) {
-            printf("!zero!\n");
-        }
         printf("%02X%02X %u\t:", rec_type, data_type, rec_len);
 
         rec_len -= 4;
