@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 static int parse_gdsii(FILE *f);
+static int check_data_len(u_int data_len, u_int must_be);
 static int fread_u16(FILE *f, uint16_t *u16);
 
 int main(void) {
@@ -81,12 +82,18 @@ static int parse_gdsii(FILE *f) {
         case HEADER:
             if (rec_tag == 0x0002) {
                 printf("HEADER\n");
+                if (check_data_len(data_len, 1) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = BGNLIB;
             }
             break;
         case BGNLIB:
             if (rec_tag == 0x0102) {
                 printf("BGNLIB\n");
+                if (check_data_len(data_len, 6 * 2) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = LIBNAME;
             }
             break;
@@ -99,69 +106,98 @@ static int parse_gdsii(FILE *f) {
         case UNITS:
             if (rec_tag == 0x0305) {
                 printf("UNITS\n");
+                if (check_data_len(data_len, (8 / 2) * 2) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = ENDLIB_OR_STRUCTURE;
             }
             break;
         case ENDLIB_OR_STRUCTURE:
             if (rec_tag == 0x0400) {            // ENDLIB
                 printf("ENDLIB\n");
+                if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 eof = 1;
             } else if (rec_tag == 0x0502) {     // BGNSTR
                 printf("BGNSTR\n");
+                if (check_data_len(data_len, 6 * 2) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = STRNAME;
             }
             break;
         case STRNAME:
             if (rec_tag == 0x0606) {
                 printf("STRNAME\n");
+                // todo: parse
                 state = ENDSTR_OR_ELEMENT;
             }
             break;
         case ENDSTR_OR_ELEMENT:
             if (rec_tag == 0x0700) {            // ENDSTR
                 printf("ENDSTR\n");
+                if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = ENDLIB_OR_STRUCTURE;
             } else if (rec_tag == 0x0800) {     // BOUNDARY
                 printf("BOUNDARY\n");
+                if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = LAYER;
             } else if (rec_tag == 0x0A00) {     // SREF
                 printf("SREF\n");
+                if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = SNAME;
             }
             break;
         case LAYER:
             if (rec_tag == 0x0D02) {
                 printf("LAYER\n");
+                // todo: parse
                 state = DATATYPE;
             }
             break;
         case DATATYPE:
             if (rec_tag == 0x0E02) {
                 printf("DATATYPE\n");
+                if (check_data_len(data_len, 1) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = XY_IN_BOUNDARY;
             }
             break;
         case XY_IN_BOUNDARY:
             if (rec_tag == 0x1003) {
                 printf("XY\n");
+                // todo: parse
                 state = ENDEL;
             }
             break;
         case SNAME:
             if (rec_tag == 0x1206) {
                 printf("SNAME\n");
+                // todo: parse
                 state = XY_IN_SREF;
             }
             break;
         case XY_IN_SREF:
             if (rec_tag == 0x1003) {
                 printf("XY\n");
+                // todo: parse
                 state = ENDEL;
             }
             break;
         case ENDEL:
             if (rec_tag == 0x1100) {
                 printf("ENDEL\n");
+                if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
+                    return EXIT_FAILURE;
+                }
                 state = ENDSTR_OR_ELEMENT;
             }
             break;
@@ -175,6 +211,15 @@ static int parse_gdsii(FILE *f) {
             }
         }
     } while (!eof);
+    return EXIT_SUCCESS;
+}
+
+static int check_data_len(u_int data_len, u_int must_be) {
+    if (data_len != must_be) {
+        fprintf(stderr, "invalid data length %u, must be %u\n",
+                data_len, must_be);
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
