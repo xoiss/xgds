@@ -57,6 +57,7 @@ static int parse_gdsii(FILE *f) {
             fprintf(stderr, "insufficient record length %u\n", rec_len);
             return EXIT_FAILURE;
         }
+        u_int data_len = rec_len / 2 - 2;
         if (fread_u16(f, &u16) != EXIT_SUCCESS) {
             return EXIT_FAILURE;
         }
@@ -168,12 +169,10 @@ static int parse_gdsii(FILE *f) {
             fprintf(stderr, "unknown record tag %04X\n", rec_tag);
             return EXIT_FAILURE;
         }
-        rec_len -= 4;
-        while (rec_len > 0) {
+        while (data_len-- > 0) {
             if (fread_u16(f, &u16) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
-            rec_len -= 2;
         }
     } while (!eof);
     return EXIT_SUCCESS;
