@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 static int parse_gdsii(FILE *f);
+static int check_rec_tag(u_int rec_tag, u_int must_be);
 static int check_data_len(u_int data_len, u_int must_be);
 static int fread_u16(FILE *f, uint16_t *u16);
 
@@ -80,37 +81,41 @@ static int parse_gdsii(FILE *f) {
         } state = HEADER;
         switch (state) {
         case HEADER:
-            if (rec_tag == 0x0002) {
-                printf("HEADER\n");
-                if (check_data_len(data_len, 1) != EXIT_SUCCESS) {
-                    return EXIT_FAILURE;
-                }
-                state = BGNLIB;
+            if (check_rec_tag(rec_tag, 0x0002) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("HEADER\n");
+            if (check_data_len(data_len, 1) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            state = BGNLIB;
             break;
         case BGNLIB:
-            if (rec_tag == 0x0102) {
-                printf("BGNLIB\n");
-                if (check_data_len(data_len, 6 * 2) != EXIT_SUCCESS) {
-                    return EXIT_FAILURE;
-                }
-                state = LIBNAME;
+            if (check_rec_tag(rec_tag, 0x0102) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("BGNLIB\n");
+            if (check_data_len(data_len, 6 * 2) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            state = LIBNAME;
             break;
         case LIBNAME:
-            if (rec_tag == 0x0206) {
-                printf("LIBNAME\n");
-                state = UNITS;
+            if (check_rec_tag(rec_tag, 0x0206) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("LIBNAME\n");
+            state = UNITS;
             break;
         case UNITS:
-            if (rec_tag == 0x0305) {
-                printf("UNITS\n");
-                if (check_data_len(data_len, (8 / 2) * 2) != EXIT_SUCCESS) {
-                    return EXIT_FAILURE;
-                }
-                state = ENDLIB_OR_STRUCTURE;
+            if (check_rec_tag(rec_tag, 0x0305) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("UNITS\n");
+            if (check_data_len(data_len, (8 / 2) * 2) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            state = ENDLIB_OR_STRUCTURE;
             break;
         case ENDLIB_OR_STRUCTURE:
             if (rec_tag == 0x0400) {            // ENDLIB
@@ -125,14 +130,19 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 state = STRNAME;
+            } else {
+                fprintf(stderr, "invalid record tag %04X, must be "
+                        "either of 0400, 0502\n", rec_tag);
+                return EXIT_FAILURE;
             }
             break;
         case STRNAME:
-            if (rec_tag == 0x0606) {
-                printf("STRNAME\n");
-                // todo: parse
-                state = ENDSTR_OR_ELEMENT;
+            if (check_rec_tag(rec_tag, 0x0606) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("STRNAME\n");
+            // todo: parse
+            state = ENDSTR_OR_ELEMENT;
             break;
         case ENDSTR_OR_ELEMENT:
             if (rec_tag == 0x0700) {            // ENDSTR
@@ -153,56 +163,66 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 state = SNAME;
+            } else {
+                fprintf(stderr, "invalid record tag %04X, must be "
+                        "either of 0700, 0800, 0A00\n", rec_tag);
+                return EXIT_FAILURE;
             }
             break;
         case LAYER:
-            if (rec_tag == 0x0D02) {
-                printf("LAYER\n");
-                // todo: parse
-                state = DATATYPE;
+            if (check_rec_tag(rec_tag, 0x0D02) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("LAYER\n");
+            // todo: parse
+            state = DATATYPE;
             break;
         case DATATYPE:
-            if (rec_tag == 0x0E02) {
-                printf("DATATYPE\n");
-                if (check_data_len(data_len, 1) != EXIT_SUCCESS) {
-                    return EXIT_FAILURE;
-                }
-                state = XY_IN_BOUNDARY;
+            if (check_rec_tag(rec_tag, 0x0E02) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("DATATYPE\n");
+            if (check_data_len(data_len, 1) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            state = XY_IN_BOUNDARY;
             break;
         case XY_IN_BOUNDARY:
-            if (rec_tag == 0x1003) {
-                printf("XY\n");
-                // todo: parse
-                state = ENDEL;
+            if (check_rec_tag(rec_tag, 0x1003) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("XY\n");
+            // todo: parse
+            state = ENDEL;
             break;
         case SNAME:
-            if (rec_tag == 0x1206) {
-                printf("SNAME\n");
-                // todo: parse
-                state = XY_IN_SREF;
+            if (check_rec_tag(rec_tag, 0x1206) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("SNAME\n");
+            // todo: parse
+            state = XY_IN_SREF;
             break;
         case XY_IN_SREF:
-            if (rec_tag == 0x1003) {
-                printf("XY\n");
-                // todo: parse
-                state = ENDEL;
+            if (check_rec_tag(rec_tag, 0x1003) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("XY\n");
+            // todo: parse
+            state = ENDEL;
             break;
         case ENDEL:
-            if (rec_tag == 0x1100) {
-                printf("ENDEL\n");
-                if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
-                    return EXIT_FAILURE;
-                }
-                state = ENDSTR_OR_ELEMENT;
+            if (check_rec_tag(rec_tag, 0x1100) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
             }
+            printf("ENDEL\n");
+            if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            state = ENDSTR_OR_ELEMENT;
             break;
         default:
-            fprintf(stderr, "unknown record tag %04X\n", rec_tag);
+            fprintf(stderr, "invalid parser state %i\n", state);
             return EXIT_FAILURE;
         }
         while (data_len-- > 0) {
@@ -211,6 +231,15 @@ static int parse_gdsii(FILE *f) {
             }
         }
     } while (!eof);
+    return EXIT_SUCCESS;
+}
+
+static int check_rec_tag(u_int rec_tag, u_int must_be) {
+    if (rec_tag != must_be) {
+        fprintf(stderr, "invalid record tag %04X, must be %04X\n",
+                rec_tag, must_be);
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
