@@ -6,15 +6,20 @@
  */
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int parse_gdsii(FILE *f);
+static int parse_struct_name(FILE *f, u_int *data_len);
+static int parse_layer_id(FILE *f, u_int *data_len);
+static int parse_points_array(FILE *f, u_int *data_len);
 static int check_rec_tag(u_int rec_tag, u_int must_be);
 static int check_data_len(u_int data_len, u_int must_be);
-static int fread_u16(FILE *f, uint16_t *u16);
+static int fread_u16(FILE *f, uint16_t *u16, u_int data_len);
 
 int main(void) {
     FILE *f = fopen("k1zhg454.gds", "rb");
@@ -27,23 +32,11 @@ int main(void) {
     return rc;
 }
 
-/*
-
-If a character string is an odd number of bytes long it is padded with a null
-character.
-
-All odd length strings must be padded with a null character (the number zero)
-and the byte count for the record containing the ASCII string must include this
-null character. Stream read-in programs must look for the null character and
-decrease the length of the string by one if the null character is present.
-
-*/
-
 static int parse_gdsii(FILE *f) {
     unsigned eof = 0;
     do {
         uint16_t u16;
-        if (fread_u16(f, &u16) != EXIT_SUCCESS) {
+        if (fread_u16(f, &u16, 1) != EXIT_SUCCESS) {
             return EXIT_FAILURE;
         }
         if (u16 == 0) { // this is used only for multi-reel tapes
@@ -60,7 +53,7 @@ static int parse_gdsii(FILE *f) {
             return EXIT_FAILURE;
         }
         u_int data_len = rec_len / 2 - 2;
-        if (fread_u16(f, &u16) != EXIT_SUCCESS) {
+        if (fread_u16(f, &u16, 1) != EXIT_SUCCESS) {
             return EXIT_FAILURE;
         }
         u_int rec_tag = ntohs(u16);
@@ -131,8 +124,8 @@ static int parse_gdsii(FILE *f) {
                 }
                 state = STRNAME;
             } else {
-                fprintf(stderr, "invalid record tag %04X, must be "
-                        "either of 0400, 0502\n", rec_tag);
+                fprintf(stderr, "invalid record tag 0x%04X, must be "
+                        "either of 0x0400, 0x0502\n", rec_tag);
                 return EXIT_FAILURE;
             }
             break;
@@ -140,8 +133,11 @@ static int parse_gdsii(FILE *f) {
             if (check_rec_tag(rec_tag, 0x0606) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
-            printf("STRNAME\n");
-            // todo: parse
+            printf("STRNAME:");
+            if (parse_struct_name(f, &data_len) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            printf("\n");
             state = ENDSTR_OR_ELEMENT;
             break;
         case ENDSTR_OR_ELEMENT:
@@ -164,8 +160,8 @@ static int parse_gdsii(FILE *f) {
                 }
                 state = SNAME;
             } else {
-                fprintf(stderr, "invalid record tag %04X, must be "
-                        "either of 0700, 0800, 0A00\n", rec_tag);
+                fprintf(stderr, "invalid record tag 0x%04X, must be "
+                        "either of 0x0700, 0x0800, 0x0A00\n", rec_tag);
                 return EXIT_FAILURE;
             }
             break;
@@ -173,8 +169,11 @@ static int parse_gdsii(FILE *f) {
             if (check_rec_tag(rec_tag, 0x0D02) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
-            printf("LAYER\n");
-            // todo: parse
+            printf("LAYER:");
+            if (parse_layer_id(f, &data_len) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            printf("\n");
             state = DATATYPE;
             break;
         case DATATYPE:
@@ -191,24 +190,37 @@ static int parse_gdsii(FILE *f) {
             if (check_rec_tag(rec_tag, 0x1003) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
-            printf("XY\n");
-            // todo: parse
+            printf("XY:");
+            if (parse_points_array(f, &data_len) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            printf("\n");
+            // todo: points_num >= 3
+            // todo: points[0] == points[points_num-1]
+            // todo: drop points[points_num-1]
             state = ENDEL;
             break;
         case SNAME:
             if (check_rec_tag(rec_tag, 0x1206) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
-            printf("SNAME\n");
-            // todo: parse
+            printf("SNAME:");
+            if (parse_struct_name(f, &data_len) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            printf("\n");
             state = XY_IN_SREF;
             break;
         case XY_IN_SREF:
             if (check_rec_tag(rec_tag, 0x1003) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
-            printf("XY\n");
-            // todo: parse
+            printf("XY:");
+            if (parse_points_array(f, &data_len) != EXIT_SUCCESS) {
+                return EXIT_FAILURE;
+            }
+            printf("\n");
+            // todo: points_num == 1
             state = ENDEL;
             break;
         case ENDEL:
@@ -226,7 +238,7 @@ static int parse_gdsii(FILE *f) {
             return EXIT_FAILURE;
         }
         while (data_len-- > 0) {
-            if (fread_u16(f, &u16) != EXIT_SUCCESS) {
+            if (fread_u16(f, &u16, 1) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
         }
@@ -234,9 +246,84 @@ static int parse_gdsii(FILE *f) {
     return EXIT_SUCCESS;
 }
 
+static int parse_struct_name(FILE *f, u_int *data_len) {
+    u_int chars_num = *data_len * 2;
+    if (chars_num == 0) {
+        fprintf(stderr, "empty structure name\n");
+        return EXIT_FAILURE;
+    }
+    if (chars_num > 32) {
+        fprintf(stderr, "structure name is too long, length %u\n", chars_num);
+        return EXIT_FAILURE;
+    }
+    char struct_name[33];
+    memset(struct_name, '\0', sizeof(struct_name));
+    if (fread_u16(f, (uint16_t*)struct_name, *data_len) != EXIT_SUCCESS) {
+        return EXIT_FAILURE;
+    }
+    if (struct_name[chars_num - 1] == '\0') {
+        chars_num--;
+    }
+    for (int i = 0; i < chars_num; ++i) {
+        char c = struct_name[i];
+        if ((c < 'A' || c > 'Z') && (c < 'a' || c > 'z') &&
+                (c < '0' || c > '9') && c != '_' && c != '?' && c != '$') {
+            fprintf(stderr, "invalid character '%c' (0x%02hhX)\n",
+                    isprint(c) ? c : '?', c);
+            return EXIT_FAILURE;
+        }
+    }
+    printf(" '%s' [%u]", struct_name, chars_num);
+    *data_len = 0;
+    return EXIT_SUCCESS;
+}
+
+static int parse_layer_id(FILE *f, u_int *data_len) {
+    if (check_data_len(*data_len, 1) != EXIT_SUCCESS) {
+        return EXIT_FAILURE;
+    }
+    uint16_t u16;
+    if (fread_u16(f, &u16, 1) != EXIT_SUCCESS) {
+        return EXIT_FAILURE;
+    }
+    int layer_id = (int16_t)ntohs(u16);
+    if (layer_id < 0 || layer_id > 63) {
+        fprintf(stderr, "invalid layer %i\n", layer_id);
+        return EXIT_FAILURE;
+    }
+    printf(" %i", layer_id);
+    *data_len = 0;
+    return EXIT_SUCCESS;
+}
+
+static int parse_points_array(FILE *f, u_int *data_len) {
+    if (*data_len % 4 != 0) {
+        fprintf(stderr, "data length %u is not a multiple of point size\n",
+                *data_len);
+        return EXIT_FAILURE;
+    }
+    u_int points_num = *data_len / (2 * 2);
+    if (points_num == 0) {
+        fprintf(stderr, "empty points array\n");
+        return EXIT_FAILURE;
+    }
+    while (points_num-- > 0) {
+        uint32_t u32[2];
+        if (fread_u16(f, (uint16_t*)u32, 4) != EXIT_SUCCESS) {
+            return EXIT_FAILURE;
+        }
+        int x, y;
+        x = (int32_t)ntohl(u32[0]);
+        y = (int32_t)ntohl(u32[1]);
+        printf(" (%i,%i)", x, y);
+    }
+    *data_len = 0;
+    return EXIT_SUCCESS;
+}
+
 static int check_rec_tag(u_int rec_tag, u_int must_be) {
     if (rec_tag != must_be) {
-        fprintf(stderr, "invalid record tag %04X, must be %04X\n",
+        fprintf(stderr, "invalid record tag 0x%04X, must be 0x%04X\n",
                 rec_tag, must_be);
         return EXIT_FAILURE;
     }
@@ -252,8 +339,8 @@ static int check_data_len(u_int data_len, u_int must_be) {
     return EXIT_SUCCESS;
 }
 
-static int fread_u16(FILE *f, uint16_t *u16) {
-    if (fread(u16, 2, 1, f) != 1) {
+static int fread_u16(FILE *f, uint16_t *u16, u_int data_len) {
+    if (fread(u16, 2, data_len, f) != data_len) {
         if (feof(f)) {
             fprintf(stderr, "unexpected end of file\n");
         } else {
