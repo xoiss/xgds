@@ -5,13 +5,16 @@
  *      Author: xoiss
  */
 
-#include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 static int parse_gdsii(FILE *f);
 static int parse_struct_name(FILE *f, u_int *data_len);
@@ -117,6 +120,22 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 eof = 1;
+                int fd = fileno(f);
+                if (fd == -1) {
+                    perror("fileno");
+                    return EXIT_FAILURE;
+                }
+                struct stat sb;
+                if (fstat(fd, &sb) == -1) {
+                    perror("fstat");
+                    return EXIT_FAILURE;
+                }
+                long pos = ftell(f);
+                if (pos < sb.st_size) {
+                    fprintf(stderr, "extra bytes after ENDLIB, "
+                            "bytes read %li, file size %li\n", pos, sb.st_size);
+                    return EXIT_FAILURE;
+                }
             } else if (rec_tag == 0x0502) {     // BGNSTR
                 printf("BGNSTR\n");
                 if (check_data_len(data_len, 6 * 2) != EXIT_SUCCESS) {
