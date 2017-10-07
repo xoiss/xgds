@@ -19,7 +19,7 @@
 static int parse_gdsii(FILE *f);
 static int parse_struct_name(FILE *f, u_int *data_len);
 static int parse_layer_id(FILE *f, u_int *data_len);
-static int parse_points_array(FILE *f, u_int *data_len);
+static int parse_points_chain(FILE *f, u_int *data_len);
 static int check_rec_tag(u_int rec_tag, u_int must_be);
 static int check_data_len(u_int data_len, u_int must_be);
 static int fread_u16(FILE *f, uint16_t *u16, u_int data_len);
@@ -220,7 +220,7 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("XY:");
-                if (parse_points_array(f, &data_len) != EXIT_SUCCESS) {
+                if (parse_points_chain(f, &data_len) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -247,7 +247,7 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("XY:");
-                if (parse_points_array(f, &data_len) != EXIT_SUCCESS) {
+                if (parse_points_chain(f, &data_len) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -330,7 +330,7 @@ static int parse_layer_id(FILE *f, u_int *data_len) {
     return EXIT_SUCCESS;
 }
 
-static int parse_points_array(FILE *f, u_int *data_len) {
+static int parse_points_chain(FILE *f, u_int *data_len) {
     if (*data_len % 4 != 0) {
         fprintf(stderr, "data length %u is not a multiple of point size\n",
                 *data_len);
