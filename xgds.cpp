@@ -19,6 +19,7 @@
 static int parse_gdsii(FILE *f);
 static int parse_struct_name(FILE *f, u_int *data_len);
 static int parse_layer_id(FILE *f, u_int *data_len);
+static int parse_single_point(FILE *f, u_int *data_len);
 static int parse_points_chain(FILE *f, u_int *data_len);
 static int check_rec_tag(u_int rec_tag, u_int must_be);
 static int check_data_len(u_int data_len, u_int must_be);
@@ -247,11 +248,10 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("XY:");
-                if (parse_points_chain(f, &data_len) != EXIT_SUCCESS) {
+                if (parse_single_point(f, &data_len) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
-                // todo: points_num == 1
                 state = ENDEL;
                 break;
             }
@@ -326,6 +326,22 @@ static int parse_layer_id(FILE *f, u_int *data_len) {
         return EXIT_FAILURE;
     }
     printf(" %i", layer_id);
+    *data_len = 0;
+    return EXIT_SUCCESS;
+}
+
+static int parse_single_point(FILE *f, u_int *data_len) {
+    if (check_data_len(*data_len, 4) != EXIT_SUCCESS) {
+        return EXIT_FAILURE;
+    }
+    uint32_t u32[2];
+    if (fread_u16(f, (uint16_t*)u32, 4) != EXIT_SUCCESS) {
+        return EXIT_FAILURE;
+    }
+    int x, y;
+    x = (int32_t)ntohl(u32[0]);
+    y = (int32_t)ntohl(u32[1]);
+    printf(" (%i,%i)", x, y);
     *data_len = 0;
     return EXIT_SUCCESS;
 }
