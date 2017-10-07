@@ -230,9 +230,21 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
-                // todo: points_num >= 3
-                // todo: points[0] == points[points_num-1]
-                // todo: drop points[points_num-1]
+                u_int chain_len = chain->len;
+                if (chain_len < 3) {
+                    fprintf(stderr, "invalid points chain length %u, "
+                            "must be at least 3\n", chain_len);
+                    return EXIT_FAILURE;
+                }
+                xgds::Point &first_point = (*chain)[0];
+                xgds::Point &last_point = (*chain)[chain_len - 1];
+                if (first_point != last_point) {
+                    fprintf(stderr, "points chain is not closed: "
+                            "first point (%i,%i), last point (%i,%i)\n",
+                            first_point.x, first_point.y,
+                            last_point.x, last_point.y);
+                    return EXIT_FAILURE;
+                }
                 state = ENDEL;
                 break;
             }
