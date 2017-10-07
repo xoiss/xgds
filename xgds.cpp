@@ -16,11 +16,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "classes.h"
+
 static int parse_gdsii(FILE *f);
-static int parse_struct_name(FILE *f, u_int *data_len);
-static int parse_layer_id(FILE *f, u_int *data_len);
-static int parse_single_point(FILE *f, u_int *data_len);
-static int parse_points_chain(FILE *f, u_int *data_len);
+static int parse_struct_name(FILE *f, u_int *data_len, xgds::Name **name);
+static int parse_layer_id(FILE *f, u_int *data_len, xgds::Layer **layer);
+static int parse_single_point(FILE *f, u_int *data_len, xgds::Point **point);
+static int parse_points_chain(FILE *f, u_int *data_len, xgds::Chain **chain);
 static int check_rec_tag(u_int rec_tag, u_int must_be);
 static int check_data_len(u_int data_len, u_int must_be);
 static int fread_u16(FILE *f, uint16_t *u16, u_int data_len);
@@ -160,7 +162,8 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("STRNAME:");
-                if (parse_struct_name(f, &data_len) != EXIT_SUCCESS) {
+                xgds::Name *name;
+                if (parse_struct_name(f, &data_len, &name) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -198,7 +201,8 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("LAYER:");
-                if (parse_layer_id(f, &data_len) != EXIT_SUCCESS) {
+                xgds::Layer *layer;
+                if (parse_layer_id(f, &data_len, &layer) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -221,7 +225,8 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("XY:");
-                if (parse_points_chain(f, &data_len) != EXIT_SUCCESS) {
+                xgds::Chain *chain;
+                if (parse_points_chain(f, &data_len, &chain) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -236,7 +241,8 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("SNAME:");
-                if (parse_struct_name(f, &data_len) != EXIT_SUCCESS) {
+                xgds::Name *name;
+                if (parse_struct_name(f, &data_len, &name) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -248,7 +254,8 @@ static int parse_gdsii(FILE *f) {
                     return EXIT_FAILURE;
                 }
                 printf("XY:");
-                if (parse_single_point(f, &data_len) != EXIT_SUCCESS) {
+                xgds::Point *point;
+                if (parse_single_point(f, &data_len, &point) != EXIT_SUCCESS) {
                     return EXIT_FAILURE;
                 }
                 printf("\n");
@@ -280,7 +287,7 @@ static int parse_gdsii(FILE *f) {
     return EXIT_SUCCESS;
 }
 
-static int parse_struct_name(FILE *f, u_int *data_len) {
+static int parse_struct_name(FILE *f, u_int *data_len, xgds::Name **name) {
     u_int chars_num = *data_len * 2;
     if (chars_num == 0) {
         fprintf(stderr, "empty structure name\n");
@@ -307,12 +314,13 @@ static int parse_struct_name(FILE *f, u_int *data_len) {
             return EXIT_FAILURE;
         }
     }
+    *name = new xgds::Name(chars_num, struct_name);
     printf(" [%u] '%s'", chars_num, struct_name);
     *data_len = 0;
     return EXIT_SUCCESS;
 }
 
-static int parse_layer_id(FILE *f, u_int *data_len) {
+static int parse_layer_id(FILE *f, u_int *data_len, xgds::Layer **layer) {
     if (check_data_len(*data_len, 1) != EXIT_SUCCESS) {
         return EXIT_FAILURE;
     }
@@ -325,12 +333,13 @@ static int parse_layer_id(FILE *f, u_int *data_len) {
         fprintf(stderr, "invalid layer %i\n", layer_id);
         return EXIT_FAILURE;
     }
+    *layer = new xgds::Layer(layer_id);
     printf(" %i", layer_id);
     *data_len = 0;
     return EXIT_SUCCESS;
 }
 
-static int parse_single_point(FILE *f, u_int *data_len) {
+static int parse_single_point(FILE *f, u_int *data_len, xgds::Point **point) {
     if (check_data_len(*data_len, 4) != EXIT_SUCCESS) {
         return EXIT_FAILURE;
     }
@@ -341,12 +350,13 @@ static int parse_single_point(FILE *f, u_int *data_len) {
     int x, y;
     x = (int32_t)ntohl(u32[0]);
     y = (int32_t)ntohl(u32[1]);
+    *point = new xgds::Point(x, y);
     printf(" (%i,%i)", x, y);
     *data_len = 0;
     return EXIT_SUCCESS;
 }
 
-static int parse_points_chain(FILE *f, u_int *data_len) {
+static int parse_points_chain(FILE *f, u_int *data_len, xgds::Chain **chain) {
     if (*data_len % 4 != 0) {
         fprintf(stderr, "data length %u is not a multiple of point size\n",
                 *data_len);
@@ -358,6 +368,7 @@ static int parse_points_chain(FILE *f, u_int *data_len) {
         return EXIT_FAILURE;
     }
     printf(" [%u]", points_num);
+    *chain = new xgds::Chain(points_num);
     while (points_num-- > 0) {
         uint32_t u32[2];
         if (fread_u16(f, (uint16_t*)u32, 4) != EXIT_SUCCESS) {
@@ -366,6 +377,7 @@ static int parse_points_chain(FILE *f, u_int *data_len) {
         int x, y;
         x = (int32_t)ntohl(u32[0]);
         y = (int32_t)ntohl(u32[1]);
+        (*chain)->load(x, y);
         printf(" (%i,%i)", x, y);
     }
     *data_len = 0;
