@@ -76,7 +76,7 @@ static int parse_gdsii(FILE *f) {
             ENDEL,
         } state = HEADER;
         switch (state) {
-        case HEADER:
+        case HEADER: {
             if (check_rec_tag(rec_tag, 0x0002) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -86,7 +86,8 @@ static int parse_gdsii(FILE *f) {
             }
             state = BGNLIB;
             break;
-        case BGNLIB:
+        }
+        case BGNLIB: {
             if (check_rec_tag(rec_tag, 0x0102) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -96,14 +97,16 @@ static int parse_gdsii(FILE *f) {
             }
             state = LIBNAME;
             break;
-        case LIBNAME:
+        }
+        case LIBNAME: {
             if (check_rec_tag(rec_tag, 0x0206) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
             printf("LIBNAME\n");
             state = UNITS;
             break;
-        case UNITS:
+        }
+        case UNITS: {
             if (check_rec_tag(rec_tag, 0x0305) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -113,7 +116,8 @@ static int parse_gdsii(FILE *f) {
             }
             state = ENDLIB_OR_STRUCTURE;
             break;
-        case ENDLIB_OR_STRUCTURE:
+        }
+        case ENDLIB_OR_STRUCTURE: {
             if (rec_tag == 0x0400) {            // ENDLIB
                 printf("ENDLIB\n");
                 if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
@@ -148,7 +152,8 @@ static int parse_gdsii(FILE *f) {
                 return EXIT_FAILURE;
             }
             break;
-        case STRNAME:
+        }
+        case STRNAME: {
             if (check_rec_tag(rec_tag, 0x0606) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -159,7 +164,8 @@ static int parse_gdsii(FILE *f) {
             printf("\n");
             state = ENDSTR_OR_ELEMENT;
             break;
-        case ENDSTR_OR_ELEMENT:
+        }
+        case ENDSTR_OR_ELEMENT: {
             if (rec_tag == 0x0700) {            // ENDSTR
                 printf("ENDSTR\n");
                 if (check_data_len(data_len, 0) != EXIT_SUCCESS) {
@@ -184,7 +190,8 @@ static int parse_gdsii(FILE *f) {
                 return EXIT_FAILURE;
             }
             break;
-        case LAYER:
+        }
+        case LAYER: {
             if (check_rec_tag(rec_tag, 0x0D02) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -195,7 +202,8 @@ static int parse_gdsii(FILE *f) {
             printf("\n");
             state = DATATYPE;
             break;
-        case DATATYPE:
+        }
+        case DATATYPE: {
             if (check_rec_tag(rec_tag, 0x0E02) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -205,7 +213,8 @@ static int parse_gdsii(FILE *f) {
             }
             state = XY_IN_BOUNDARY;
             break;
-        case XY_IN_BOUNDARY:
+        }
+        case XY_IN_BOUNDARY: {
             if (check_rec_tag(rec_tag, 0x1003) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -219,7 +228,8 @@ static int parse_gdsii(FILE *f) {
             // todo: drop points[points_num-1]
             state = ENDEL;
             break;
-        case SNAME:
+        }
+        case SNAME: {
             if (check_rec_tag(rec_tag, 0x1206) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -230,7 +240,8 @@ static int parse_gdsii(FILE *f) {
             printf("\n");
             state = XY_IN_SREF;
             break;
-        case XY_IN_SREF:
+        }
+        case XY_IN_SREF: {
             if (check_rec_tag(rec_tag, 0x1003) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -242,7 +253,8 @@ static int parse_gdsii(FILE *f) {
             // todo: points_num == 1
             state = ENDEL;
             break;
-        case ENDEL:
+        }
+        case ENDEL: {
             if (check_rec_tag(rec_tag, 0x1100) != EXIT_SUCCESS) {
                 return EXIT_FAILURE;
             }
@@ -252,9 +264,11 @@ static int parse_gdsii(FILE *f) {
             }
             state = ENDSTR_OR_ELEMENT;
             break;
-        default:
+        }
+        default: {
             fprintf(stderr, "invalid parser state %i\n", state);
             return EXIT_FAILURE;
+        }
         }
         while (data_len-- > 0) {
             if (fread_u16(f, &u16, 1) != EXIT_SUCCESS) {
