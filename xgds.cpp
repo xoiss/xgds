@@ -307,7 +307,7 @@ static int parse_struct_name(FILE *f, u_int *data_len) {
             return EXIT_FAILURE;
         }
     }
-    printf(" '%s' [%u]", struct_name, chars_num);
+    printf(" [%u] '%s'", chars_num, struct_name);
     *data_len = 0;
     return EXIT_SUCCESS;
 }
@@ -357,6 +357,7 @@ static int parse_points_chain(FILE *f, u_int *data_len) {
         fprintf(stderr, "empty points array\n");
         return EXIT_FAILURE;
     }
+    printf(" [%u]", points_num);
     while (points_num-- > 0) {
         uint32_t u32[2];
         if (fread_u16(f, (uint16_t*)u32, 4) != EXIT_SUCCESS) {
