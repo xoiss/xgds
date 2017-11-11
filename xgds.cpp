@@ -27,8 +27,12 @@ static int check_rec_tag(u_int rec_tag, u_int must_be);
 static int check_data_len(u_int data_len, u_int must_be);
 static int fread_u16(FILE *f, uint16_t *u16, u_int data_len);
 
-int main(void) {
-    FILE *f = fopen("k1zhg454.gds", "rb");
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        fprintf(stderr, "missed input gds file\n");
+        return EXIT_FAILURE;
+    }
+    FILE *f = fopen(argv[1], "rb");
     if (f == NULL) {
         perror("fopen");
         return EXIT_FAILURE;
